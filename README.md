@@ -13,7 +13,7 @@
 Instale o pacote diretamente do repositório GitHub:
 
 ```bash
-pip install git+https://github.com/botlorien/dataprocess.git
+pip install etl-dataprocess
 ```
 ou
 ``` bash
