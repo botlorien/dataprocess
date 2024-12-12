@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="etl-dataprocess",
-    version="0.1.1",
+    version="0.1.2",
     description='Functions utils to perform data processing',
     author='Ben-Hur P. B. Santos',
     author_email='botlorien@gmail.com',
