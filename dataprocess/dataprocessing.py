@@ -136,7 +136,7 @@ def _read_excel(file_path: str | os.PathLike, **kwargs) -> pd.DataFrame:
             logging.info(df.head())
         return df
     except ValueError as e:
-        logging.exception(e)
+        logging.error(e)
 
 
 def _read_csv(file_path: str | os.PathLike, **kwargs) -> pd.DataFrame:
@@ -152,12 +152,12 @@ def _read_csv(file_path: str | os.PathLike, **kwargs) -> pd.DataFrame:
             logging.info(df.head())
         return df
     except ValueError as e:
-        logging.exception(e)
+        logging.error(e)
 
 
 def _read_html(file_path: str | os.PathLike, **kwargs) -> pd.DataFrame:
     try:
-        # getting unnamend_columns and number file values and removing it form 
+        # getting unnamend_columns and number file values and removing it form
         # kwargs
         unnamed_columns = kwargs.pop('unnamed_columns')
         number_file = kwargs.pop('number_file')
@@ -183,7 +183,7 @@ def _read_html(file_path: str | os.PathLike, **kwargs) -> pd.DataFrame:
             df = _ignore_unnamed_columns(df)
         return df
     except ValueError as e:
-        logging.exception(e)
+        logging.error(e)
 
 
 def _read_json(file_path: str | os.PathLike) -> dict:
@@ -218,31 +218,31 @@ def import_file(
     Import data from a file in various formats.
 
     :param file_path: (str) Path to the file to be imported.
-    :param number_file: (int, optional) Index of the file to read if file_path 
+    :param number_file: (int, optional) Index of the file to read if file_path
     is a directory. Default is 0.
     :param encoding: (str, optional) File encoding. Default is 'ISO-8859-1'.
     :param sep: (str, optional) Delimiter used in CSV files. Default is ';'.
-    :param thousands: (str, optional) Thousands separator used in XLS files. 
+    :param thousands: (str, optional) Thousands separator used in XLS files.
     Default is ''.
-    :param decimal: (str, optional) Decimal separator used in XLS files. 
+    :param decimal: (str, optional) Decimal separator used in XLS files.
     Default is ','.
-    :param flavor: (str, optional) HTML parser flavor used in XLS files. 
+    :param flavor: (str, optional) HTML parser flavor used in XLS files.
     Default is 'lxml'.
-    :param unnamed_columns: (bool, optional) Whether to ignore unnamed columns 
+    :param unnamed_columns: (bool, optional) Whether to ignore unnamed columns
     in the imported data. Default is True.
     :param kwargs: Additional keyword arguments for specific file types.
-    :return: (DataFrame, dict, str) Imported data, as a Pandas DataFrame, a 
+    :return: (DataFrame, dict, str) Imported data, as a Pandas DataFrame, a
     dictionary or a string.
 
-    This method imports data from a file in various formats, including Excel, 
+    This method imports data from a file in various formats, including Excel,
     CSV, XLS, JSON and text files. If the
-    provided file_path is a directory, it reads the file at the specified 
+    provided file_path is a directory, it reads the file at the specified
     index in the directory (default is the
-    first file). The supported file formats are determined by the file 
+    first file). The supported file formats are determined by the file
     extension, which is used to select the
-    appropriate import function. Additional arguments can be passed as keyword 
+    appropriate import function. Additional arguments can be passed as keyword
     arguments to the import functions,
-    such as the delimiter used in CSV files or the encoding of the input file. 
+    such as the delimiter used in CSV files or the encoding of the input file.
     By default, unnamed columns are
     ignored in the imported data.
 
@@ -259,7 +259,7 @@ def import_file(
     # Verify if file_path provide the file with extention
     if len(file_path.split('.')) > 1:
 
-        # configure unnamed_columns parameter if  keep or delete columns with 
+        # configure unnamed_columns parameter if  keep or delete columns with
         # the name unnamed in the name column
         unnamed_columns = (False if 'unnamed_columns' not in kwargs
                            else kwargs.pop('unnamed_columns'))
@@ -268,13 +268,13 @@ def import_file(
         ext = file_path.split('.')[-1]
 
         # Define default encoding
-        encoding = ('ISO-8859-1' if 'encoding' not in kwargs 
+        encoding = ('ISO-8859-1' if 'encoding' not in kwargs
                     else kwargs.pop('encoding'))
 
         # Read excel
         if 'xlsx' == ext.lower():
             read_file = _read_excel(
-                file_path, 
+                file_path,
                 unnamed_columns=unnamed_columns,
                 **kwargs
                 )
@@ -385,80 +385,61 @@ def adjust_encode_df_html(
     return df
 
 
-def convert_thousands_decimal_formats(
-        table: pd.DataFrame,
-        column: str
-        ) -> pd.DataFrame:
-    table[column] = table[column].astype('str')
+@staticmethod
+def convert_thousands_decimal_formats(table, column):
+    """
+    Convert values in a specific column of a DataFrame from thousands and decimal format to a standard format.
+    """
+    def adjust_decimal(value):
+        try:
+            # Replace '.' (thousands separator) and ',' (decimal) to a standard format
+            if ',' in value and '.' in value and value.index(',') > value.index('.'):
+                value = value.replace('.', '').replace(',', '.')
+            elif ',' in value:
+                value = value.replace(',', '.')
+            return value
+        except Exception as e:
+            raise e
+            return value  # Return original value if errors occur
 
-    def adjust_decimal(valor):
-        decimal_sep = [
-            (valor[i] for i in range(len(valor) - 1, -1, -1)
-             if valor[i] == ',' or valor[i] == '.')
-            ]
-        if len(decimal_sep) > 0:
-            if decimal_sep[0] == '.':
-                valor = valor.replace(',', '')
-                valor = valor.replace('.', ',')
-            else:
-                valor = valor.replace('.', '')
-        return valor
-
-    table[column] = list(
-        map(lambda x: adjust_decimal(x), table[column].tolist())
-        )
+    table[column] = table[column].apply(lambda x: adjust_decimal(str(x)))
     return table[column]
 
 
-def int_float_converter(table: pd.DataFrame, column: str) -> pd.DataFrame:
+
+def int_float_converter(table, column):
+    """
+    Convert values in a specific column of a DataFrame to either integers or floats, handling different formats.
+    """
     try:
-        table[column] = table[column].astype('str')
-        table[column] = remove_nan_from_table(table, column)
+        table[column] = table[column].astype(str)
+        table[column] = replace_nan_from_table(table, column, 0)
+        table[column] = table[column].apply(lambda x: 0 if '' else x)
         table[column] = convert_thousands_decimal_formats(table, column)
-        table[column] = list(
-            map(
-                (lambda x: x.replace(' ', '').replace('#', '0')
-                 .replace('*', '0').strip()),
-                table[column].tolist())
-                )
 
-        lista_valores_int = list(
-            map(
-                (lambda x: 'float' if ',' in str(x) 
-                 and (int(str(x).split(',')[1]) > 0) else 'int'),
-                table[column].tolist())
-                )
+        # Clean unwanted characters
+        table[column] = table[column].str.replace(' ', '').str.replace('#', '0').str.replace('*', '0').str.strip()
 
-        if 'float' not in lista_valores_int:
-            table[column] = list(
-                map(
-                    (lambda x: 0 if (len(x) <= 0) 
-                     else int(float(str(x).replace(',', '.')))),
-                    table[column].tolist())
-                    )
+        try:
+            table[column] = table[column].astype('int')
+        except ValueError:
+            try:
+                table[column] = table[column].astype('float')
+            except ValueError:
+                pass
 
-        else:
-            table[column] = list(
-                map(
-                    (lambda x: x.replace(' ', '').replace('.', '')
-                     .replace(',', '.').strip()),
-                    table[column].tolist())
-                    )
-            table[column] = list(
-                map(lambda x: 0 if (len(x) <= 0) else float(x), 
-                    table[column].tolist())
-                    )
-            max_decimal_house = max([
-                    len(str(val).split('.')[1])
-                    for val in table[column].tolist() if '.' in str(val)
-                    ])
-            table[column] = list(
-                map(lambda x: float(format(x, f".{max_decimal_house}f")),
-                    table[column].tolist())
-                    )
+        # Ensure consistent formatting for floats
+        if table[column].dtype == 'float64':
+            max_decimal_house = max(
+                [len(str(val).split('.')[1]) for val in table[column] if '.' in str(val)] or [0]
+            )
+            table[column] = table[column].apply(lambda x: round(x, max_decimal_house))
+
         return table[column]
-    except ValueError as e:
-        logging.exception(e)
+
+    except Exception as e:
+        logging.error("Error converting column to int/float: %s", e)
+        raise e
         return table[column]
 
 
@@ -467,7 +448,7 @@ def clear_invalid_characters_from_list(
         replace: str = ' '
         ) -> list:
     lista = [
-        re.sub(r'\W+', replace, valor).strip() 
+        re.sub(r'\W+', replace, valor).strip()
         if len(re.sub(r'\W+', replace, valor)) > 0 else valor.strip()
         for valor in lista
         ]
@@ -481,47 +462,64 @@ def clear_invalid_characters_from_str(
     return re.sub(r'\W+', replace, string_to_clear).strip()
 
 
-def remove_nan_from_table(table: pd.DataFrame, column: str) -> pd.DataFrame:
-    table[column] = list(
-        map(lambda x: '' if (str(x) == 'nan') else x,
-            table[column].tolist())
-            )
+@staticmethod
+def replace_nan_from_table(table, column, replacement=''):
+    """
+    Remove NaN values from a specific column of a DataFrame.
+    """
+    table[column] = table[column].apply(lambda x: replacement if pd.isna(x) else x)
     return table[column]
 
 
-def replace_none_for_zero_on_column(
-        table: pd.DataFrame,
-        column: str
-        ) -> pd.DataFrame:
-    table[column] = list(
-        map(lambda x: '0' if (str(x).lower() == 'none')
-            else x, table[column].tolist())
-        )
-    return table[column]
+def replace_none_for_zero_on_column(table: pd.DataFrame, column: str) -> pd.Series:
+    """
+    Replaces 'None' strings in a column with '0'.
+
+    Parameters:
+    - table: DataFrame containing the data.
+    - column: Name of the column to process.
+
+    Returns:
+    - Updated column as a pandas Series.
+    """
+    return table[column].apply(lambda x: '0' if str(x).lower() == 'none' else x)
 
 
-def clear_table(
-        table: pd.DataFrame,
-        clear_char_in_list: list | None = None
-        ) -> pd.DataFrame:
-    table = table.fillna(value='')
-    table = table.astype('str')
+def clear_table(table: pd.DataFrame, clear_char_in_list: list | None = None) -> pd.DataFrame:
+    """
+    Cleans the DataFrame by performing the following steps:
+    - Fills NaN values with an empty string.
+    - Converts all data to strings.
+    - Replaces 'None' values with '0'.
+    - Removes double spaces and trims strings.
+    - Replaces 'NaT' with an empty string.
+    - Optionally removes specific characters provided in `clear_char_in_list`.
+
+    Parameters:
+    - table: DataFrame to clean.
+    - clear_char_in_list: List of characters to remove from columns (optional).
+
+    Returns:
+    - Cleaned DataFrame.
+    """
+    # Fill NaN values and convert to string
+    table = table.fillna('').astype(str)
+
     for column in table.columns:
-        # table[column] = remove_nan_from_table(table, column)
+        # Replace 'None' with '0'
         table[column] = replace_none_for_zero_on_column(table, column)
-        table[column] = list(
-            map(lambda x: x.replace('  ', '').strip(), table[column].tolist())
-            )
-        table[column] = list(
-            map(lambda x: '' if (x == 'NaT') else x, table[column].tolist())
-            )
-        if clear_char_in_list is not None:
+
+        # Remove double spaces and trim
+        table[column] = table[column].str.replace('  ', '').str.strip()
+
+        # Replace 'NaT' with an empty string
+        table[column] = table[column].replace('NaT', '')
+
+        # Remove specified characters if provided
+        if clear_char_in_list:
             for char in clear_char_in_list:
-                table[column] = list(
-                    map(
-                        lambda x: '' if (x == char) else x,
-                        table[column].tolist())
-                    )
+                table[column] = table[column].replace(char, '')
+
     return table
 
 
@@ -712,8 +710,8 @@ def get_str_format_datetime_by_switch_case(i: int) -> str:
 
 
 def _convert_column_to_datetime_with_strptime(
-        table: pd.DataFrame, 
-        column: str, 
+        table: pd.DataFrame,
+        column: str,
         format_d: str = "%d/%m/%y"
         ) -> pd.DataFrame:
     for i in range(24):
@@ -731,7 +729,7 @@ def _convert_column_to_datetime_with_strptime(
                     )
             break
         except Exception as e:
-            logging.exception(e)
+            logging.error(e)
             format_d = get_str_format_datetime_by_switch_case(i + 1)
             logging.info(format_d)
     return table[column]
@@ -754,7 +752,7 @@ def _convert_column_to_datetime_with_datetime64(
                     )
             break
         except Exception as e:
-            logging.exception(e)
+            logging.error(e)
             format_d = get_str_format_datetime_by_switch_case(i + 1)
             logging.info(format_d)
     return table[column]
@@ -764,12 +762,12 @@ def convert_column_to_datetime(
         table: pd.DataFrame,
         column: str
         ) -> pd.DataFrame:
-    table[column] = remove_nan_from_table(table, column)
+    table[column] = replace_nan_from_table(table, column)
 
     # Trying many ways to convert the column to datetime
     try:
         table[column] = _convert_column_to_datetime_with_strptime(
-            table, 
+            table,
             column
             )
     except Exception:
@@ -778,16 +776,16 @@ def convert_column_to_datetime(
         except Exception:
             try:
                 table[column] = _convert_column_to_datetime_with_datetime64(
-                    table, 
+                    table,
                     column
                     )
             except Exception as e:
-                logging.exception(e)
+                logging.error(e)
 
     # replacing empty values with 'NULL' value to be set on the database
     table[column] = list(
         map(
-            lambda x: x if len(str(x)) >= 8 else 'NULL', 
+            lambda x: x if len(str(x)) >= 8 else 'NULL',
             table[column].tolist()
             )
         )
@@ -805,7 +803,7 @@ def get_str_format_time_by_switch_case(i: int) -> str:
 
 def convert_column_to_time_with_strptime(
         table: pd.DataFrame,
-        column: str, 
+        column: str,
         format_t: str = '%H:%M:%S'
         ) -> pd.DataFrame:
     for i in range(2):
@@ -817,7 +815,7 @@ def convert_column_to_time_with_strptime(
             table[column] = pd.to_datetime(table[column], format=format_t)
             break
         except Exception as e:
-            logging.exception(e)
+            logging.error(e)
             format_t = get_str_format_time_by_switch_case(i + 1)
     # replacing empty values with 'NULL' value to be set on the database
     table[column] = list(
@@ -844,7 +842,7 @@ def _convert_column_to_time_with_datetime64(
                 ).dt.time
             break
         except Exception as e:
-            logging.exception(e)
+            logging.error(e)
             format_t = get_str_format_time_by_switch_case(i + 1)
 
     # replacing empty values with 'NULL' value to be set on the database
@@ -863,7 +861,7 @@ def _convert_column_to_time(table: pd.DataFrame, column: str) -> pd.DataFrame:
         # converting with strptime function to format H:M:S
         table[column] = convert_column_to_time_with_strptime(table, column)
     except Exception as e:
-        logging.exception(e)
+        logging.error(e)
         try:
             # converting with datetime64 parameter to format H:M
             table[column] = _convert_column_to_time_with_datetime64(
@@ -871,7 +869,7 @@ def _convert_column_to_time(table: pd.DataFrame, column: str) -> pd.DataFrame:
                 column
                 )
         except Exception as e:
-            logging.exception(e)
+            logging.error(e)
 
     return table[column]
 
@@ -888,16 +886,16 @@ def convert_table_columns_to_datetime(
         if (ignore_type_columns is None
                 or column.lower() not in ignore_type_columns):
             if True in [
-                True for arg in dtypes['datetime'] 
+                True for arg in dtypes['datetime']
                     if arg.lower() in column.lower()
                     ]:
                 table[column] = convert_column_to_datetime(table, column)
 
         # verify if name column seem like a name column time
-        if (ignore_type_columns is None 
+        if (ignore_type_columns is None
                 or column.lower() not in ignore_type_columns):
             if True in [
-                    True for arg in dtypes['time'] 
+                    True for arg in dtypes['time']
                     if arg.lower() in column.lower()
                     ]:
                 table[column] = _convert_column_to_time(table, column)
@@ -935,7 +933,7 @@ def convert_table_types(
             try:
                 table[column_n] = int_float_converter(table, column_n)
             except Exception as e:
-                logging.exception(f'ERROR COLUMN: {column_n}')
+                logging.error(f'ERROR COLUMN: {column_n}')
                 raise e
     return table
 
@@ -981,7 +979,7 @@ def get_full_range_days_from_month(
     _verify_numeric_month_year(month, year)
 
     # get the month before
-    month_before = (str(date.today().month - 1) 
+    month_before = (str(date.today().month - 1)
                     if str(date.today().month - 1) != '0' else '12')
 
     # if month is zero define as month before
@@ -1012,7 +1010,7 @@ def get_full_range_days_from_month(
 
     # get the firt day from next month
     first_day_prox_month = datetime.strptime(
-        f'01/{month_prox}/{year}', 
+        f'01/{month_prox}/{year}',
         date_format
         )
 
@@ -1044,7 +1042,7 @@ def get_range_days_from_current_month(
 
 
 def convert_string_date_to_datetime(
-        date_string: str, 
+        date_string: str,
         date_format: str = "%d/%m/%Y",
         date_option: int = 0
         ) -> None | datetime:
@@ -1071,7 +1069,7 @@ def string_format_br_date(
         format_date: str = '6'
         ) -> str | datetime:
     """
-    This function takes a datetime object and a format code as inputs and 
+    This function takes a datetime object and a format code as inputs and
     returns the date formatted in various Brazilian formats.
 
     :param date: The input date as a datetime object
@@ -1104,7 +1102,7 @@ def string_format_br_date(
         return date
     # adjusting day and month length
     day = '0' + str(date.day) if len(str(date.day)) < 2 else str(date.day)
-    month = ('0' + str(date.month) 
+    month = ('0' + str(date.month)
              if len(str(date.month)) < 2 else str(date.month))
 
     # defining the 'yy' and 'yyyy' year formats
@@ -1166,14 +1164,14 @@ def change_letters_per_number(text: str) -> int:
     # Get the letters of alphabet
     alphabet = str(string.ascii_lowercase)
 
-    # Convert the text to lower case to match with the lower letters in the 
+    # Convert the text to lower case to match with the lower letters in the
     # alphabet
     text = text.lower()
 
-    # Replace letter by the position number of this letter in the alphabet and 
+    # Replace letter by the position number of this letter in the alphabet and
     # keep char number
     number = int(
-        ''.join(str(alphabet.find(c) + 1) 
+        ''.join(str(alphabet.find(c) + 1)
                 if len(re.findall('\d', c)) == 0 else c for c in text)
                 )
 
@@ -1187,7 +1185,7 @@ def convert_img_to_pdf(path_img: str | os.PathLike) -> None:
 
     # Open an image file
     with Image.open(path_img) as image:
-        # Convert the image to RGB, even if it's already in RGB mode, 
+        # Convert the image to RGB, even if it's already in RGB mode,
         # to ensure the image is saved as a color image
         imagelist = [image.convert('RGB')]
         image.save(pdf_path, save_all=True, append_images=imagelist)
@@ -1247,41 +1245,41 @@ def color_table_line(
     """
         Colorizes a specific line in a table in an Excel file.
 
-        This function applies a background color and/or a font color to a 
+        This function applies a background color and/or a font color to a
         specific line in a table in an Excel file.
         The file is modified in-place.
 
         :param file_path: The path to the Excel file.
         :type file_path: str
-        :param color_argb_background: The ARGB value of the background color, 
+        :param color_argb_background: The ARGB value of the background color,
         defaults to 'FFFFFF00'.
         :type color_argb_background: str, optional
-        :param color_argb_values: The ARGB value of the font color, 
+        :param color_argb_values: The ARGB value of the font color,
         defaults to None.
         :type color_argb_values: str, optional
         :param index_line: The index of the line to colorize, defaults to 1.
-                            If multiple indices are provided, each line will 
+                            If multiple indices are provided, each line will
                             be colorized.
         :type index_line: int or list[int], optional
 
         :process:
             1. Load the existing workbook from the file.
             2. Select the active worksheet.
-            3. If index_line is an integer, convert it to a list containing a 
+            3. If index_line is an integer, convert it to a list containing a
             single element.
             4. Iterate over each line in index_line.
             5. Select the row corresponding to the line.
             6. If color_argb_values is not None, create a font with the
             specified color.
                 Apply this font to all cells in the row.
-            7. If color_argb_background is not None, create a fill pattern 
+            7. If color_argb_background is not None, create a fill pattern
             with the specified background color.
                 Apply this fill pattern to all cells in the row.
             8. Save the modified workbook back to the file.
 
         Example:
             >>> file_path = "table.xlsx"
-            >>> color_table_line(file_path, color_argb_background='FFFFFF00', 
+            >>> color_table_line(file_path, color_argb_background='FFFFFF00',
             color_argb_values=None, index_line=1)
     """
     from openpyxl import load_workbook
@@ -1331,7 +1329,7 @@ def get_list_start_end_dates_by_range_days_on_year(
         ) -> tuple[list[str | datetime], list[str | datetime]]:
     ini_ = f'01/01/{year}' if len(start_date) == 0 else start_date
     ini_datetime = convert_string_date_to_datetime(ini_)
-    end_ = (get_date_back(0) if len(end_date) == 0 
+    end_ = (get_date_back(0) if len(end_date) == 0
             else convert_string_date_to_datetime(end_date))
     if ini_datetime is not None and end_ is not None:
         diff = (end_ - ini_datetime).days
@@ -1436,8 +1434,8 @@ def scan_image(
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     height, width = gray.shape
     gray = cv2.resize(
-        gray, 
-        (width * 4, height * 4), 
+        gray,
+        (width * 4, height * 4),
         interpolation=cv2.INTER_LINEAR
         )
 
@@ -1488,13 +1486,13 @@ def _append_results(report: dict, result: list) -> None:
             try:
                 report[f'result_{k + 1}'] += [r]
             except Exception as e:
-                logging.exception(e)
+                logging.error(e)
                 report[f'result_{k + 1}'] = [r]
     else:
         try:
             report['result'] += [result]
         except Exception as e:
-            logging.exception(e)
+            logging.error(e)
             report['result'] = [result]
 
 
@@ -1508,7 +1506,7 @@ def get_report_from_interaction(
             result = func(param)
             _append_results(report, result)
         except Exception as e:
-            logging.exception(e)
+            logging.error(e)
             _append_results(
                 report,
                 [f'ERROR: {str(e)}' for _ in list(report.keys())[1:]])
