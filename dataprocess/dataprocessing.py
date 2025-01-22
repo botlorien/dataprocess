@@ -1624,6 +1624,13 @@ def generate_unique_filename(original_filename: str) -> str:
     return new_filename
 
 
+def shave_marks(text):
+    import unicodedata
+    norm_text = unicodedata.normalize('NFD', text)
+    shaved = ''.join(c for c in norm_text if not unicodedata.combining(c))
+    return unicodedata.normalize('NFC', shaved)
+
+
 class ReadSSWTextReport:
     def __init__(self, file_path: str | os.PathLike, delimiter='+'):
         self.file_path = file_path
