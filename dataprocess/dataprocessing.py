@@ -414,11 +414,9 @@ def int_float_converter(table, column):
     try:
         table[column] = table[column].astype(str)
         table[column] = replace_nan_from_table(table, column, 0)
-        table[column] = table[column].apply(lambda x: 0 if '' else x)
-        table[column] = convert_thousands_decimal_formats(table, column)
-
-        # Clean unwanted characters
         table[column] = table[column].str.replace(' ', '').str.replace('#', '0').str.replace('*', '0').str.strip()
+        table[column] = table[column].apply(lambda x: 0 if x == '' else x)
+        table[column] = convert_thousands_decimal_formats(table, column)
 
         try:
             table[column] = table[column].astype('int')
