@@ -438,7 +438,7 @@ def int_float_converter(table, column):
     except Exception as e:
         logging.error("Error converting column to int/float: %s", e)
         raise e
-        return table[column]
+
 
 
 def clear_invalid_characters_from_list(
